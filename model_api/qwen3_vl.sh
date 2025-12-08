@@ -9,6 +9,8 @@ python -m vllm.entrypoints.openai.api_server \
     --host 127.0.0.1 \
     --port 8012 \
     --max-model-len 131072 \
+    --limit-mm-per-prompt image=10 \
+    --allowed-local-media-path \
     # --reasoning-parser deepseek_r1 \
     # --no-enable-chunked-prefill \
     # --speculative-config '{"method":"qwen3_next_mtp","num_speculative_tokens":4}'

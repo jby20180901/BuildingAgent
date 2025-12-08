@@ -1,44 +1,87 @@
-import sys
 import os
+import uuid
+import tempfile
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
+from PIL import Image
+import sys
+import torch
 
-# 将当前脚本所在项目的根目录（即 BuildingAgent）加入 Python 路径
-current_dir = os.path.dirname(os.path.abspath(__file__))  # /home/.../model_api
-project_root = os.path.dirname(current_dir)               # /home/.../BuildingAgent
-sys.path.insert(0, project_root)
+# 获取当前脚本所在的目录，然后向上回退到项目的根目录
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 
-# 现在可以正常导入 TRELLIS 包
 from TRELLIS.trellis.pipelines import TrellisImageTo3DPipeline
 from TRELLIS.trellis.utils import render_utils, postprocessing_utils
 
-class ImageTo3DConverter:
-    def __init__(self, model_path):
-        os.environ['SPCONV_ALGO'] = 'native'
-        self.pipeline = TrellisImageTo3DPipeline.from_pretrained(model_path)
-        self.pipeline.cuda()
+# 配置环境变量（避免每次请求重复设置）
+os.environ['SPCONV_ALGO'] = 'native'
 
-    def convert(self, image_path, seed=1):
-        image = Image.open(image_path)
-        outputs = self.pipeline.run(
+app = FastAPI(title="3D Model Generator API")
+
+# 模型初始化（启动时加载，避免每次请求加载）
+try:
+    pipeline = TrellisImageTo3DPipeline.from_pretrained(
+        "/home/jiangbaoyang/HuggingFace-Download-Accelerator/hf_hub/TRELLIS-image-large"
+    )
+    pipeline.cuda()
+    print("✅ Model loaded successfully!")
+except Exception as e:
+    raise RuntimeError(f"Model initialization failed: {str(e)}") from e
+
+@app.post("/generate-3d/")
+async def generate_3d(file: UploadFile = File(...)):
+    """
+    上传图片 → 生成3D模型（GLB/Mesh/视频）
+    返回生成的GLB文件
+    """
+    # 1. 保存上传的图片到临时文件
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+        tmp.write(await file.read())
+        temp_image_path = tmp.name
+
+    # 2. 生成3D模型
+    try:
+        image = Image.open(temp_image_path)
+        outputs = pipeline.run(
             image,
-            seed=seed,
+            seed=1,
+            # 可扩展参数：如添加 cfg_strength 等
         )
-        return outputs
 
-    @staticmethod
-    def render_and_save(outputs, output_format='gaussian', filename='output.mp4'):
-        video = render_utils.render_video(outputs[output_format][0])['color']
-        imageio.mimsave(filename, video, fps=30, codec='libx264')
+        # 3. 生成临时文件名（避免冲突）
+        unique_id = uuid.uuid4().hex[:8]
+        output_dir = tempfile.mkdtemp()
+        glb_path = os.path.join(output_dir, f"model_{unique_id}.glb")
 
-    @staticmethod
-    def save_as_glb(gaussian_output, mesh_output, filename='output.glb', simplify=0.95, texture_size=1024):
+        # 4. 保存GLB文件
         glb = postprocessing_utils.to_glb(
-            gaussian_output,
-            mesh_output,
-            simplify=simplify,
-            texture_size=texture_size,
+            outputs['gaussian'][0],
+            outputs['mesh'][0],
+            simplify=0.95,
+            texture_size=1024
         )
-        glb.export(filename)
+        glb.export(glb_path)
 
-    @staticmethod
-    def save_as_ply(gaussian_output, filename='output.ply'):
-        gaussian_output.save_ply(filename)
+        # 5. 返回GLB文件（自动清理临时文件）
+        return FileResponse(
+            glb_path,
+            media_type="application/octet-stream",
+            filename=f"3d_model_{unique_id}.glb"
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Generation failed: {str(e)}"
+        ) from e
+
+    finally:
+        # 清理临时图片
+        if os.path.exists(temp_image_path):
+            os.remove(temp_image_path)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="10.3.3.1", port=8031)

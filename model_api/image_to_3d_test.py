@@ -1,23 +1,32 @@
-import imageio
-from image_to_3d_api import ImageTo3DConverter
+import requests
+import os
 
-def main():
-    # 初始化模型路径和输入图像路径
-    model_path = "/home/jiangbaoyang/HuggingFace-Download-Accelerator/hf_hub/TRELLIS-image-large"
-    image_path = "/home/jiangbaoyang/model_api/result.png"
+# 本地测试用：确保服务已运行在 http://localhost:8000
+API_URL = "http://10.3.3.1:8031/generate-3d/"
 
-    # 创建ImageTo3DConverter实例并进行转换
-    converter = ImageTo3DConverter(model_path=model_path)
-    outputs = converter.convert(image_path=image_path, seed=1)
+def test_3d_generation():
+    """测试API：上传图片并下载生成的GLB文件"""
+    # 准备测试图片（替换为你的测试图路径）
+    test_image_path = "/home/jiangbaoyang/GitHub/BuildingAgent/model_api/result.png"  # 确保存在此文件
+    if not os.path.exists(test_image_path):
+        raise FileNotFoundError(f"Test image not found at {test_image_path}")
 
-    # 渲染并保存视频
-    converter.render_and_save(outputs, output_format='gaussian', filename="sample_gs.mp4")
-    converter.render_and_save(outputs, output_format='radiance_field', filename="sample_rf.mp4")
-    converter.render_and_save(outputs, output_format='mesh', filename="sample_mesh.mp4")
+    # 发送POST请求
+    with open(test_image_path, "rb") as f:
+        files = {"file": (os.path.basename(test_image_path), f, "image/png")}
+        response = requests.post(API_URL, files=files)
 
-    # 保存GLB和PLY文件
-    converter.save_as_glb(outputs['gaussian'][0], outputs['mesh'][0], filename="sample.glb")
-    converter.save_as_ply(outputs['gaussian'][0], filename="sample.ply")
+    # 检查响应
+    if response.status_code == 200:
+        # 保存返回的GLB文件
+        output_path = f"generated_model_{os.urandom(4).hex()}.glb"
+        with open(output_path, "wb") as f:
+            f.write(response.content)
+        print(f"✅ Success! Model saved to: {output_path}")
+        print(f"File size: {os.path.getsize(output_path)} bytes")
+    else:
+        print(f"❌ Failed with status code: {response.status_code}")
+        print("Response:", response.text)
 
 if __name__ == "__main__":
-    main()
+    test_3d_generation()
