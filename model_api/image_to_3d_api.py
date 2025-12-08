@@ -78,7 +78,8 @@ async def generate_3d(file: UploadFile = File(...)):
                         codec='libx264',
                         pixelformat='yuv420p'
                     )
-                    generated_files.append(mp4_path)
+                    if 'gaussian' in outputs:
+                        generated_files.append(mp4_path)
                 except Exception as e:
                     print(f"⚠️ Failed to render video for {asset_type}: {e}")
 
