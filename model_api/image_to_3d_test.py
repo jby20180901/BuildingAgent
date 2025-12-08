@@ -19,7 +19,7 @@ def test_3d_generation():
     # 检查响应
     if response.status_code == 200:
         # 保存返回的GLB文件
-        output_path = f"generated_model_{os.urandom(4).hex()}.glb"
+        output_path = f"generated_model_{os.urandom(4).hex()}.zip"
         with open(output_path, "wb") as f:
             f.write(response.content)
         print(f"✅ Success! Model saved to: {output_path}")
