@@ -54,10 +54,10 @@ class CityPlannerAgent(BaseAgent):
 
 3.  `districts` (数组): 城市功能分区列表。
     *   `district_id` (字符串): 唯一ID, 如 "D01"。
-    *   `name` (字符串): 区域名, 如 "联邦大道金融区"。
+    *   `name` (字符串): 区域名。
     *   `type` (枚举): `financial`, `commercial`, `residential`, `municipal` (市政区), `park`。
     *   `description` (字符串): 区域特点描述。
-    *   `grid_allocation`: (数组) 分配给该区域的简单网格坐标
+    *   `grid_allocation`: (数组) 分配给该矩形区域的网格坐标（单位米，和现实要对应）
 
 4.  `asset_catalogue` (数组): 主资产目录。
     *   `asset_id` (字符串): 唯一ID, 如 "BUILDING_BANK_ARTDECO_01"。
