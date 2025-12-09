@@ -57,7 +57,7 @@ class CityPlannerAgent(BaseAgent):
     *   `name` (字符串): 区域名。
     *   `type` (枚举): `financial`, `commercial`, `residential`, `municipal` (市政区), `park`。
     *   `description` (字符串): 区域特点描述。
-    *   `grid_allocation`: (数组) 分配给该矩形区域的网格坐标（单位米，和现实要对应）
+    *   `grid_allocation`: (数组) 分配给该矩形区域的网格坐标（2个斜对角顶点坐标，单位米，和现实要对应）
 
 4.  `asset_catalogue` (数组): 主资产目录。
     *   `asset_id` (字符串): 唯一ID, 如 "BUILDING_BANK_ARTDECO_01"。
