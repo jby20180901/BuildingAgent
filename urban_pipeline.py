@@ -9,7 +9,7 @@ from agents.planner_agent import CityPlannerAgent
 from agents.asset_agent import AssetGenerationAgent
 from agents.assembly_agent import SceneAssemblyAgent
 from agents.base_agent import BaseAgent # 导入基类
-from api_stubs import qwen_api_mock, qwen_vl_api_mock, gaussian_splatting_snapshot_mock
+from api_stubs import call_llm_api, call_vlm_api, gaussian_splatting_snapshot_mock
 
 # 定义缺失的 SceneReviewAgent
 class SceneReviewAgent(BaseAgent):
@@ -30,13 +30,13 @@ class SceneReviewAgent(BaseAgent):
         # 2. VLM 分析视觉效果
         print("   - 🧐 VLM正在分析视觉效果...")
         vl_prompt = "请描述这个场景的整体氛围、光照和布局是否符合一个'白天晴天'的'20世纪中期大都市'主题。"
-        visual_report_str = qwen_vl_api_mock(beauty_shot, vl_prompt) # 注意：这里使用旧的vl_api_mock, 需要适配
+        visual_report_str = call_vlm_api(beauty_shot, vl_prompt)  # 注意：这里使用旧的vl_api_mock, 需要适配
         # 简单的适配
         if "evaluation_report" in visual_report_str:
              visual_report = json.loads(visual_report_str)["evaluation_report"]
         else: # 适配新的vl_api_mock的输出
              # 模拟一个基于新mock的报告
-             if random.random() > 0.5:
+             if random() > 0.5:
                  visual_report = "场景整体光照偏暗，不符合白天晴天的设定。"
              else:
                  visual_report = "场景视觉效果优秀，符合规划。"
@@ -57,7 +57,7 @@ class SceneReviewAgent(BaseAgent):
         如果视觉报告指出了与规划核心概念的明显冲突（如氛围、天气），则决策为“迭代”，并在actions中提出具体的、可执行的修改建议。否则，决策为“满意”。
         严格返回JSON。
         """
-        decision_str = qwen_api_mock(decision_prompt)
+        decision_str = call_llm_api(decision_prompt)
         decision = json.loads(decision_str)
 
         print(f"   - 最终决策: {decision['decision']}")

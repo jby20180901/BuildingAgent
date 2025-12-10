@@ -3,14 +3,14 @@ import json
 from typing import Dict, List, Any, Tuple
 
 from .base_agent import BaseAgent
-from api_stubs import qwen_api_mock
+from api_stubs import call_llm_api
 
 # agents/planner_agent.py (升级版)
 import json
 from typing import Dict, List, Any, Tuple
 
 from .base_agent import BaseAgent
-from api_stubs import qwen_api_mock
+from api_stubs import call_llm_api
 
 class CityPlannerAgent(BaseAgent):
     """
@@ -74,7 +74,7 @@ class CityPlannerAgent(BaseAgent):
 """
 
         
-        response_str = qwen_api_mock(prompt)
+        response_str = call_llm_api(prompt)
         plan_data = json.loads(response_str)
         
         # 根据新的、更丰富的结构来解析数据

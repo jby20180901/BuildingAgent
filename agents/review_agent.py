@@ -3,7 +3,7 @@ import json
 from typing import Dict
 
 from .base_agent import BaseAgent
-from api_stubs import qwen_api_mock, qwen_vl_api_mock
+from api_stubs import call_llm_api, call_vlm_api
 
 class SceneReviewAgent(BaseAgent):
     """
@@ -17,7 +17,7 @@ class SceneReviewAgent(BaseAgent):
         
         # 1. 场景审查 (Qwen-VL)
         review_prompt = f"描述这个场景的整体氛围，并根据'{city_plan['theme']}'的主题判断其一致性和潜在问题。"
-        review_result = qwen_vl_api_mock(scene_snapshot, review_prompt)
+        review_result = call_vlm_api(scene_snapshot, review_prompt)
         
         # 2. 整合决策 (Qwen)
         decision_prompt = f"""
@@ -29,7 +29,7 @@ class SceneReviewAgent(BaseAgent):
         {review_result['evaluation_report']}
         """
         
-        decision_str = qwen_api_mock(decision_prompt)
+        decision_str = call_llm_api(decision_prompt)
         decision = json.loads(decision_str)
         
         print(f"\n🎬 总监决策: {decision['decision']}")

@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional, List
 
 from .base_agent import BaseAgent
 # 注意：qwen_api_mock 现在也被用于多模态输入
-from api_stubs import qwen_api_mock, gaussian_splatting_merge_mock, gaussian_splatting_snapshot_mock, qwen_vl_api_mock 
+from api_stubs import call_llm_api, gaussian_splatting_merge_mock, gaussian_splatting_snapshot_mock, call_vlm_api
 
 class SceneAssemblyAgent(BaseAgent):
     """
@@ -72,7 +72,7 @@ class SceneAssemblyAgent(BaseAgent):
             print("   - 🧠 请求VLM规划放置坐标 (附带场景视觉)...")
             placement_prompt = self._create_multimodal_placement_prompt(asset_id, asset_info, current_scene_state, city_plan)
             # 假设qwen_api_mock可以处理多模态输入
-            placement_str = qwen_api_mock(placement_prompt, image_path=panoramic_before_path)
+            placement_str = call_llm_api(placement_prompt, image_path=panoramic_before_path)
             
             try:
                 placement_data = json.loads(placement_str)
@@ -118,7 +118,7 @@ class SceneAssemblyAgent(BaseAgent):
             # 6. 调用VLM评估放置质量（使用四张对比图）
             print("   - 🧐 请求VLM进行差分对比，评估放置质量...")
             qa_prompt = self._create_differential_qa_prompt(asset_id, asset_info, placement_data)
-            qa_result_str = qwen_vl_api_mock(visual_evidence, qa_prompt)
+            qa_result_str = call_vlm_api(visual_evidence, qa_prompt)
 
             try:
                 qa_result = json.loads(qa_result_str)

@@ -7,7 +7,7 @@ import zipfile
 from typing import Dict, Any, Optional
 
 from .base_agent import BaseAgent
-from api_stubs import qwen_api_mock, qwen_image_api_mock, sam3d_api_mock, qwen_vl_api_mock
+from api_stubs import call_llm_api, call_gen_image_api, call_gen_3d_api, call_vlm_api
 
 class AssetGenerationAgent(BaseAgent):
     """
@@ -53,15 +53,15 @@ class AssetGenerationAgent(BaseAgent):
         """负责2D图像的生成和质量校验，包含重试逻辑。"""
         print("\n--- 📝 Phase 2.1: 生成并校验2D概念图 (带重试) ---")
         image_prompt_template = self._create_2d_image_prompt_template(asset_task)
-        image_prompt = qwen_api_mock(image_prompt_template) # 生成最终prompt
+        image_prompt = call_llm_api(image_prompt_template)  # 生成最终prompt
         
         for attempt in range(1, max_retries + 1):
             print(f"\n   Attempt {attempt}/{max_retries} for 2D Image:")
             
-            image_path = qwen_image_api_mock(image_prompt, attempt)
+            image_path = call_gen_image_api(image_prompt, attempt)
             
             qa_prompt = self._create_2d_qa_prompt(asset_task)
-            qa_result_str = qwen_vl_api_mock(image_path, qa_prompt)
+            qa_result_str = call_vlm_api(image_path, qa_prompt)
             
             try:
                 qa_result = json.loads(qa_result_str)
@@ -87,14 +87,14 @@ class AssetGenerationAgent(BaseAgent):
         for attempt in range(1, max_retries + 1):
             print(f"\n   Attempt {attempt}/{max_retries} for 3D Model:")
             
-            model_zip_path = sam3d_api_mock(image_path, attempt) 
+            model_zip_path = call_gen_3d_api(image_path, attempt)
             
             print("   📁 正在解包3D资产...")
             unpacked_files = self._unpack_zip_mock(model_zip_path)
             render_video_path = unpacked_files["render_video"]
             
             qa_prompt = self._create_3d_qa_prompt(asset_task)
-            qa_result_str = qwen_vl_api_mock(render_video_path, qa_prompt)
+            qa_result_str = call_vlm_api(render_video_path, qa_prompt)
             
             try:
                 qa_result = json.loads(qa_result_str)
@@ -122,7 +122,7 @@ class AssetGenerationAgent(BaseAgent):
 类型: "{asset_task['type']}"
 请以 "Length: Xm, Width: Ym, Height: Zm" 的格式给出合理估算。
 """
-        estimation = qwen_api_mock(dimension_prompt)
+        estimation = call_llm_api(dimension_prompt)
         print(f"   -> 估算结果: {estimation}")
         return estimation
 

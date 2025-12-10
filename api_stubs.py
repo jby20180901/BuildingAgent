@@ -13,7 +13,7 @@ if not os.path.exists("tmp"):
 
 # --- 核心大模型模拟 ---
 
-def qwen_api_mock(prompt: str, image_path: Optional[str] = None) -> str:
+def call_llm_api(prompt: str, image_path: Optional[str] = None) -> str:
     """
     【已升级】模拟Qwen文本或多模态模型API。
     根据高度结构化的Prompt返回相应的JSON或文本。
@@ -82,7 +82,7 @@ def qwen_api_mock(prompt: str, image_path: Optional[str] = None) -> str:
     return json.dumps({"error": "未知的prompt类型"})
 
 
-def qwen_vl_api_mock(media_path: Union[str, Dict], prompt: str) -> str:
+def call_vlm_api(media_path: Union[str, Dict], prompt: str) -> str:
     """
     【已升级】模拟Qwen-VL多模态模型。
     根据不同的QA任务返回结构化的JSON响应。
@@ -119,7 +119,7 @@ def qwen_vl_api_mock(media_path: Union[str, Dict], prompt: str) -> str:
 
 # --- 核心生成模型模拟 ---
 
-def qwen_image_api_mock(prompt: str, attempt: int) -> str:
+def call_gen_image_api(prompt: str, attempt: int) -> str:
     """模拟文生图API。文件名中包含尝试次数，以便QA mock进行响应。"""
     print(f"🎨 Qwen-Image (Attempt {attempt}) processing prompt...")
     time.sleep(2)
@@ -128,7 +128,7 @@ def qwen_image_api_mock(prompt: str, attempt: int) -> str:
     print(f"  -> Generated: {asset_name}")
     return asset_name
 
-def sam3d_api_mock(image_path: str, attempt: int) -> str:
+def call_gen_3d_api(image_path: str, attempt: int) -> str:
     """模拟图生3D模型API。返回一个包含多个文件的zip包。"""
     print(f"🧊 SAM3D (Attempt {attempt}) processing image: '{image_path}'")
     time.sleep(3)
