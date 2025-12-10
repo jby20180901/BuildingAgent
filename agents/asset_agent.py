@@ -7,7 +7,10 @@ import zipfile
 from typing import Dict, Any, Optional
 
 from .base_agent import BaseAgent
-from api_stubs import call_llm_api, call_gen_image_api, call_gen_3d_api, call_vlm_api
+from utils.llm_utils import call_llm_api
+from utils.gen_image_utils import call_gen_image_api
+from utils.vlm_utils import call_vlm_api
+from utils.gen_3d_utils import call_gen_3d_api
 
 class AssetGenerationAgent(BaseAgent):
     """

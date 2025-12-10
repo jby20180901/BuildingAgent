@@ -10,7 +10,7 @@ import json
 from typing import Dict, List, Any, Tuple
 
 from .base_agent import BaseAgent
-from api_stubs import call_llm_api
+from utils.llm_utils import call_llm_api
 
 class CityPlannerAgent(BaseAgent):
     """

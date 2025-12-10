@@ -153,7 +153,7 @@ def call_gen_3d_api(image_path: str, attempt: int) -> str:
 
 # --- 场景与高斯泼溅模拟 ---
 
-def gaussian_splatting_merge_mock(base_scene_ply: Optional[str], new_asset_ply: str, position: Dict, rotation: Dict, step: int) -> str:
+def gaussian_splatting_merge(base_scene_ply: Optional[str], new_asset_ply: str, position: Dict, rotation: Dict, step: int) -> str:
     """模拟合并高斯模型。"""
     print(f"   - [API STUB] Merging asset into scene...")
     time.sleep(1)
@@ -161,7 +161,7 @@ def gaussian_splatting_merge_mock(base_scene_ply: Optional[str], new_asset_ply: 
     with open(merged_path, "w") as f: f.write(f"Fake merged PLY data, step {step}")
     return merged_path
 
-def gaussian_splatting_snapshot_mock(scene_ply: Optional[str], camera_mode: str, info: str, target_pos: Optional[Dict] = None) -> str:
+def gaussian_splatting_snapshot(scene_ply: Optional[str], camera_mode: str, info: str, target_pos: Optional[Dict] = None) -> str:
     """【已升级】模拟为高斯场景生成快照。"""
     scene_name = "empty_scene" if scene_ply is None else os.path.basename(scene_ply)
     print(f"   - [API STUB] Taking '{camera_mode}' snapshot of '{scene_name}' for '{info}'...")

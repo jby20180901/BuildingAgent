@@ -4,8 +4,9 @@ import time
 from typing import Dict, Any, Optional, List
 
 from .base_agent import BaseAgent
-# 注意：qwen_api_mock 现在也被用于多模态输入
-from api_stubs import call_llm_api, gaussian_splatting_merge_mock, gaussian_splatting_snapshot_mock, call_vlm_api
+from utils.llm_utils import call_llm_api
+from utils.gs_utils import gaussian_splatting_merge, gaussian_splatting_snapshot
+from utils.vlm_utils import call_vlm_api
 
 class SceneAssemblyAgent(BaseAgent):
     """
@@ -44,7 +45,7 @@ class SceneAssemblyAgent(BaseAgent):
         
         print("\n--- 🚀 所有资产处理完毕，生成最终场景快照 ---")
         if scene_state["merged_ply_path"]:
-            final_snapshot = gaussian_splatting_snapshot_mock(scene_state["merged_ply_path"], "panoramic", "final_beauty_shot")
+            final_snapshot = gaussian_splatting_snapshot(scene_state["merged_ply_path"], "panoramic", "final_beauty_shot")
             print(f"🎉 场景组装完成！最终快照: {final_snapshot}")
             return {
                 "final_scene_ply": scene_state["merged_ply_path"],
@@ -61,7 +62,7 @@ class SceneAssemblyAgent(BaseAgent):
         """
         # 1. 拍摄放置前的全景图，为布局决策提供视觉上下文
         print("   - 📸 正在拍摄当前场景全景图 (用于布局决策)...")
-        panoramic_before_path = gaussian_splatting_snapshot_mock(
+        panoramic_before_path = gaussian_splatting_snapshot(
             current_scene_state["merged_ply_path"], "panoramic", f"before_{asset_id}"
         )
 
@@ -71,7 +72,7 @@ class SceneAssemblyAgent(BaseAgent):
             # 2. 调用多模态模型决定放置位置（VLM nyní přijímá obraz)
             print("   - 🧠 请求VLM规划放置坐标 (附带场景视觉)...")
             placement_prompt = self._create_multimodal_placement_prompt(asset_id, asset_info, current_scene_state, city_plan)
-            # 假设qwen_api_mock可以处理多模态输入
+            # 假设qwen_api可以处理多模态输入
             placement_str = call_llm_api(placement_prompt, image_path=panoramic_before_path)
             
             try:
@@ -83,13 +84,13 @@ class SceneAssemblyAgent(BaseAgent):
 
             # 3. 拍摄放置前的“局部”快照
             print(f"   - 📸 正在拍摄目标区域 {target_pos} 的局部快照 (放置前)...")
-            local_before_path = gaussian_splatting_snapshot_mock(
+            local_before_path = gaussian_splatting_snapshot(
                 current_scene_state["merged_ply_path"], "local", f"before_{asset_id}_local_retry_{attempt}", target_pos
             )
 
             # 4. 调用模拟API合并高斯模型
             print(f"   - 🔗 正在合并模型到场景中... (at {target_pos})")
-            newly_merged_ply = gaussian_splatting_merge_mock(
+            newly_merged_ply = gaussian_splatting_merge(
                 base_scene_ply=current_scene_state["merged_ply_path"],
                 new_asset_ply=asset_info["gaussian_splatting_path"],
                 position=target_pos,
@@ -99,11 +100,11 @@ class SceneAssemblyAgent(BaseAgent):
 
             # 5. 拍摄放置后的“局部”和“全景”快照
             print(f"   - 📸 正在拍摄目标区域 {target_pos} 的局部快照 (放置后)...")
-            local_after_path = gaussian_splatting_snapshot_mock(
+            local_after_path = gaussian_splatting_snapshot(
                 newly_merged_ply, "local", f"after_{asset_id}_local_retry_{attempt}", target_pos
             )
             print("   - 📸 正在拍摄新场景的全景快照 (放置后)...")
-            panoramic_after_path = gaussian_splatting_snapshot_mock(
+            panoramic_after_path = gaussian_splatting_snapshot(
                 newly_merged_ply, "panoramic", f"after_{asset_id}_pano_retry_{attempt}"
             )
             
