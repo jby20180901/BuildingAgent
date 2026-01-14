@@ -123,4 +123,4 @@ async def generate_3d(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="10.3.3.1", port=8031)
+    uvicorn.run(app, host="0.0.0.0", port=8031)

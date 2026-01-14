@@ -8,10 +8,10 @@ from typing import List
 import uvicorn
 from io import BytesIO
 import base64
-import numpy as np
-import json  # <-- 新增
+import json
+import asyncio
 
-# 初始化模型
+# === 模型单例 ===
 pipeline = None
 device = "cuda" if torch.cuda.is_available() else "cpu"
 torch_dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
@@ -28,7 +28,20 @@ def load_model():
         pipeline.set_progress_bar_config(disable=None)
         print("Model loaded successfully")
 
-# FastAPI应用
+# === 并发控制：最多 4 个推理同时进行 ===
+inference_semaphore = asyncio.Semaphore(4)
+
+# === 同步推理函数（在线程中运行）===
+def run_inference_sync(inputs):
+    with torch.inference_mode():
+        output = pipeline(**inputs)
+        output_image = output.images[0]
+        buffered = BytesIO()
+        output_image.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        return img_str
+
+# === FastAPI App ===
 app = FastAPI(title="Qwen Image Edit Plus API")
 
 class ImageEditRequest(BaseModel):
@@ -46,25 +59,24 @@ async def startup_event():
 
 @app.post("/edit-image")
 async def edit_image(
-    request: str = Form(...),  # <-- 修改：接收字符串
+    request: str = Form(...),
     images: List[UploadFile] = File(...)
 ):
     try:
-        # 手动解析 request 字符串为 Pydantic 模型
+        # 解析参数
         request_data = json.loads(request)
-        request_obj = ImageEditRequest(**request_data)  # 验证并创建实例
+        request_obj = ImageEditRequest(**request_data)
 
-        # 读取上传的图片
+        # 读取图像（异步）
         input_images = []
         for img_file in images:
             img_bytes = await img_file.read()
             img = Image.open(BytesIO(img_bytes)).convert("RGB")
             input_images.append(img)
-        
-        if len(input_images) < 2:
-            raise HTTPException(status_code=400, detail="At least 2 images are required")
 
-        # 准备输入参数（使用 request_obj）
+        print(request_obj.prompt)
+
+        # 构造输入
         inputs = {
             "image": input_images,
             "prompt": request_obj.prompt,
@@ -76,15 +88,14 @@ async def edit_image(
             "num_images_per_prompt": request_obj.num_images_per_prompt,
         }
 
-        # 执行图片编辑
-        with torch.inference_mode():
-            output = pipeline(**inputs)
-            output_image = output.images[0]
-            
-            # 将结果转换为base64
-            buffered = BytesIO()
-            output_image.save(buffered, format="PNG")
-            img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        # 获取信号量（控制并发）
+        await inference_semaphore.acquire()
+        try:
+            # 在线程池中运行同步推理（不阻塞事件循环）
+            loop = asyncio.get_event_loop()
+            img_str = await loop.run_in_executor(None, run_inference_sync, inputs)
+        finally:
+            inference_semaphore.release()  # 释放信号量
 
         return {
             "success": True,

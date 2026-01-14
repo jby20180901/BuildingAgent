@@ -5,7 +5,7 @@ from io import BytesIO
 
 url = "http://localhost:8021/generate"
 payload = {
-    "prompt": "生成一个高保真的3-5层的巴洛克建筑，要求立体图视角，能够看到建筑的全貌，真实风格",
+    "prompt": "生成一个街区的卫星图，要求高清晰，高保真，4K",
     "negative_prompt": "",
     "seed": 5678,
     "randomize_seed": False,
