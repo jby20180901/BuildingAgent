@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
-Render a top-down view of a 3D Gaussian Splatting (.ply) scene using the
-official PyTorch/gsplat renderer. Saves both a PNG and the 4x4 camera pose.
+Render views of a 3D Gaussian Splatting (.ply) scene using the
+official PyTorch/gsplat renderer. Saves PNGs and the 4x4 camera poses.
 
 Usage (example):
   python scripts/render_topdown_3dgs.py \
@@ -11,13 +11,18 @@ Usage (example):
       --width 1920 --height 1080 \
       --cam-height 8.0 --fovy 55
 
+Each call now writes six views (±X, ±Y, ±Z). When ``--out`` (resp.
+``--pose-out``) points to a file, suffixes like ``_posx`` are appended
+before the extension (e.g., ``topdown_posx.png``). If it points to a
+folder, files are created inside with those names.
+
 Requirements: torch, gsplat, plyfile, torchvision, numpy (already in requirements.txt).
 """
 import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -46,7 +51,7 @@ def compute_scene_stats(means: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor
 
 def look_at(camera_pos: torch.Tensor, target: torch.Tensor, up: torch.Tensor) -> torch.Tensor:
     """Create camera-to-world matrix with given position, look-at target, and up vector.
-    
+
     Returns a camera-to-world (c2w) matrix with axes:
     - X-axis (right): points to the right of the camera
     - Y-axis (up): points upward
@@ -81,6 +86,21 @@ def save_pose_matrix(pose: torch.Tensor, path: Path) -> None:
         json.dump({"c2w": pose_list}, f, indent=2)
 
 
+def _resolve_output_path(base: Path, label: str, default_suffix: str) -> Path:
+    """Derive a labeled output path from a base path."""
+    if base.suffix:
+        return base.with_name(f"{base.stem}_{label}{base.suffix}")
+
+    if base.exists() and base.is_dir():
+        directory = base
+        return directory / f"{label}{default_suffix}"
+
+    if base.name == "":
+        return base / f"{label}{default_suffix}"
+
+    return base.parent / f"{base.name}_{label}{default_suffix}"
+
+
 def render_topdown(
     ply_path: Path,
     out_path: Path,
@@ -97,21 +117,31 @@ def render_topdown(
     means, scales, quats, rgbs, opacities = load_ply(str(ply_path), device=dev)
     center, extent, _ = compute_scene_stats(means)
 
-    # Auto height: slightly above the largest horizontal span
-    auto_height = float(max(extent[0].item(), extent[2].item()) * 1.2)
-    cam_h = cam_height if cam_height is not None else max(auto_height, 1.0)
+    auto_radius = float(extent.max().item() * 1.2)
+    radius = cam_height if cam_height is not None else max(auto_radius, 1.0)
 
-    if down_axis.lower() == "z":
-        cam_offset = torch.tensor([0.0, 0.0, cam_h], device=dev)
-        up = torch.tensor([0.0, 1.0, 0.0], device=dev)
-    else:  # default Y-down view (looking -Y)
-        cam_offset = torch.tensor([0.0, cam_h, 0.0], device=dev)
-        up = torch.tensor([0.0, 0.0, 1.0], device=dev)
+    view_configs: List[Tuple[str, torch.Tensor, torch.Tensor]] = [
+        ("posx", torch.tensor([radius, 0.0, 0.0], device=dev), torch.tensor([0.0, 1.0, 0.0], device=dev)),
+        ("negx", torch.tensor([-radius, 0.0, 0.0], device=dev), torch.tensor([0.0, 1.0, 0.0], device=dev)),
+        ("posy", torch.tensor([0.0, radius, 0.0], device=dev), torch.tensor([0.0, 0.0, 1.0], device=dev)),
+        ("negy", torch.tensor([0.0, -radius, 0.0], device=dev), torch.tensor([0.0, 0.0, -1.0], device=dev)),
+        ("posz", torch.tensor([0.0, 0.0, radius], device=dev), torch.tensor([0.0, 1.0, 0.0], device=dev)),
+        ("negz", torch.tensor([0.0, 0.0, -radius], device=dev), torch.tensor([0.0, 1.0, 0.0], device=dev)),
+    ]
 
-    camera_pos = center + cam_offset
-    c2w = look_at(camera_pos, center, up)
-    world_to_view = torch.linalg.inv(c2w).unsqueeze(0)
-    K = build_intrinsics(width, height, fovy_deg).unsqueeze(0).to(dev)
+    view_labels: List[str] = []
+    c2w_mats: List[torch.Tensor] = []
+    camera_positions = {}
+    for label, offset, up in view_configs:
+        camera_pos = center + offset
+        c2w = look_at(camera_pos, center, up)
+        view_labels.append(label)
+        c2w_mats.append(c2w)
+        camera_positions[label] = camera_pos
+
+    world_to_view = torch.linalg.inv(torch.stack(c2w_mats)).to(dev)
+    K = build_intrinsics(width, height, fovy_deg).to(dev)
+    Ks = K.unsqueeze(0).repeat(len(view_labels), 1, 1)
 
     backgrounds = torch.ones(3, device=dev, dtype=torch.float32)
     try:
@@ -122,7 +152,7 @@ def render_topdown(
             opacities=opacities.squeeze(-1).float(),
             colors=rgbs.float(),
             viewmats=world_to_view.float(),
-            Ks=K.float(),
+            Ks=Ks.float(),
             height=height,
             width=width,
             render_mode="RGB",
@@ -131,32 +161,47 @@ def render_topdown(
     except Exception as exc:
         raise RuntimeError(f"Rasterization failed: {exc}") from exc
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    save_image(outputs[0].permute(2, 0, 1), str(out_path))
-    save_pose_matrix(c2w, pose_path)
+    for idx, label in enumerate(view_labels):
+        image_path = _resolve_output_path(out_path, label, ".png")
+        pose_out_path = _resolve_output_path(pose_path, label, ".json")
 
-    print(f"[TopDown] Saved image to: {out_path}")
-    print(f"[TopDown] Saved camera pose to: {pose_path}")
-    print(f"[TopDown] Camera position: {camera_pos.tolist()} | look_at: {center.tolist()}")
+        image_path.parent.mkdir(parents=True, exist_ok=True)
+        save_image(outputs[idx].permute(2, 0, 1), str(image_path))
+        save_pose_matrix(c2w_mats[idx], pose_out_path)
+
+        camera_pos = camera_positions[label]
+        print(f"[{label}] Saved image to: {image_path}")
+        print(f"[{label}] Saved camera pose to: {pose_out_path}")
+        print(f"[{label}] Camera position: {camera_pos.tolist()} | look_at: {center.tolist()}")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Render a top-down 3DGS view (PNG) and save the 4x4 camera pose."
+        description="Render six axis-aligned 3DGS views (PNGs) and save the 4x4 camera poses."
     )
     parser.add_argument("--ply", required=True, type=Path, help="Input 3DGS .ply file")
-    parser.add_argument("--out", required=True, type=Path, help="Output PNG path")
-    parser.add_argument("--pose-out", required=True, type=Path, help="Output pose (JSON) path")
+    parser.add_argument(
+        "--out",
+        required=True,
+        type=Path,
+        help="Output PNG base path (file or directory)",
+    )
+    parser.add_argument(
+        "--pose-out",
+        required=True,
+        type=Path,
+        help="Output pose base path (file or directory)",
+    )
     parser.add_argument("--width", type=int, default=1024, help="Render width (px)")
     parser.add_argument("--height", type=int, default=1024, help="Render height (px)")
-    parser.add_argument("--cam-height", type=float, default=None, help="Camera height above scene")
+    parser.add_argument("--cam-height", type=float, default=None, help="Camera radius from scene center")
     parser.add_argument("--fovy", type=float, default=55.0, help="Vertical FOV in degrees")
     parser.add_argument(
         "--down-axis",
         type=str,
         choices=["y", "z"],
         default="y",
-        help="Axis to look down from (+Y or +Z)",
+        help="Retained for compatibility; axis selection is now handled automatically.",
     )
     parser.add_argument(
         "--device",
@@ -187,3 +232,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
